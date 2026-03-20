@@ -27,6 +27,7 @@
             width: 800px;
             height: 600px;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            background: #f5e6d3;
         }
 
         #ui-layer {
@@ -62,6 +63,22 @@
 
         #ink-level {
             color: #cd853f;
+        }
+
+        #game-area {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .ink-drop {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, rgba(20,20,20,1) 0%, rgba(60,60,60,0.6) 50%, rgba(100,100,100,0) 100%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
         }
 
         #controls {
@@ -187,6 +204,10 @@
             </div>
         </div>
 
+        <div id="game-area">
+            <!-- 墨滴会在这里生成 -->
+        </div>
+
         <div id="controls">
             <button class="btn" onclick="togglePause()">暂停</button>
             <button class="btn" onclick="resetGame()">重新开始</button>
@@ -216,31 +237,197 @@
         </div>
     </div>
 
-    <script type="module" src="/src/main.js?v=20260320214500"></script>
     <script>
+        // 游戏状态
+        let gameState = {
+            score: 0,
+            inkLevel: 0,
+            isPlaying: false,
+            isPaused: false,
+            inkDrops: [],
+            currentInkX: 400,
+            currentInkY: 100,
+            inkSpeed: 2,
+            lastDropTime: 0,
+            dropInterval: 1500
+        };
+
+        let gameLoop = null;
+        let keyboardListener = null;
+
+        // 开始游戏
         function startGame() {
             document.getElementById('start-screen').style.display = 'none';
-            if (window.gameInstance) {
-                const scene = window.gameInstance.scene.getScene('GameScene');
-                if (scene) {
-                    scene.resetGame();
+            gameState.isPlaying = true;
+            gameState.isPaused = false;
+            
+            // 创建初始墨滴
+            createInkDrop(400, 100);
+            
+            // 开始游戏循环
+            gameLoop = setInterval(update, 16);
+            
+            // 键盘监听
+            keyboardListener = (e) => handleKeyPress(e);
+            document.addEventListener('keydown', keyboardListener);
+        }
+
+        // 创建墨滴
+        function createInkDrop(x, y) {
+            const drop = document.createElement('div');
+            drop.className = 'ink-drop';
+            drop.style.left = x + 'px';
+            drop.style.top = y + 'px';
+            document.getElementById('game-area').appendChild(drop);
+            
+            gameState.inkDrops.push({
+                element: drop,
+                x: x,
+                y: y,
+                isDropped: false
+            });
+        }
+
+        // 键盘处理
+        function handleKeyPress(e) {
+            if (!gameState.isPlaying || gameState.isPaused) return;
+            
+            const speed = 10;
+            const fastSpeed = 20;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                    gameState.currentInkX = Math.max(50, gameState.currentInkX - speed);
+                    break;
+                case 'ArrowRight':
+                    gameState.currentInkX = Math.min(750, gameState.currentInkX + speed);
+                    break;
+                case 'ArrowDown':
+                    gameState.inkSpeed = fastSpeed;
+                    break;
+                case ' ':
+                    collectInk();
+                    e.preventDefault();
+                    break;
+            }
+            
+            updateUI();
+        }
+
+        // 收墨消除
+        function collectInk() {
+            const droppedDrops = gameState.inkDrops.filter(d => d.isDropped);
+            if (droppedDrops.length === 0) return;
+            
+            // 计算分数
+            const baseScore = droppedDrops.length * 100;
+            const riskMultiplier = 1 + (gameState.inkLevel / 100);
+            const score = Math.floor(baseScore * riskMultiplier);
+            
+            gameState.score += score;
+            
+            // 减少墨迹程度
+            gameState.inkLevel = Math.max(0, gameState.inkLevel - (droppedDrops.length * 5));
+            
+            // 移除墨滴
+            droppedDrops.forEach(drop => {
+                drop.element.remove();
+                gameState.inkDrops = gameState.inkDrops.filter(d => d !== drop);
+            });
+            
+            updateUI();
+        }
+
+        // 游戏更新
+        function update() {
+            if (!gameState.isPlaying || gameState.isPaused) return;
+            
+            const now = Date.now();
+            
+            // 自动下落
+            gameState.currentInkY += gameState.inkSpeed;
+            
+            // 触底检测
+            if (gameState.currentInkY >= 550) {
+                // 固定当前墨滴
+                const currentDrop = gameState.inkDrops[gameState.inkDrops.length - 1];
+                if (currentDrop) {
+                    currentDrop.isDropped = true;
+                }
+                
+                // 增加墨迹程度
+                gameState.inkLevel = Math.min(100, gameState.inkLevel + 10);
+                
+                // 重置墨滴位置
+                gameState.currentInkY = 100;
+                gameState.currentInkX = 400 + (Math.random() - 0.5) * 200;
+                gameState.inkSpeed = 2;
+                
+                // 创建新墨滴
+                createInkDrop(gameState.currentInkX, gameState.currentInkY);
+                
+                updateUI();
+                
+                // 游戏结束检测
+                if (gameState.inkLevel >= 100) {
+                    gameOver();
                 }
             }
-        }
-
-        function togglePause() {
-            const scene = window.gameInstance.scene.getScene('GameScene');
-            if (scene) {
-                scene.isPaused = !scene.isPaused;
+            
+            // 更新最后一个墨滴位置
+            const lastDrop = gameState.inkDrops[gameState.inkDrops.length - 1];
+            if (lastDrop) {
+                lastDrop.x = gameState.currentInkX;
+                lastDrop.y = gameState.currentInkY;
+                lastDrop.element.style.left = gameState.currentInkX + 'px';
+                lastDrop.element.style.top = gameState.currentInkY + 'px';
             }
         }
 
+        // 更新 UI
+        function updateUI() {
+            document.getElementById('score').innerText = `分数：${gameState.score}`;
+            document.getElementById('ink-level').innerText = `墨迹程度：${Math.floor(gameState.inkLevel)}%`;
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameState.isPlaying = false;
+            gameState.isPaused = true;
+            
+            clearInterval(gameLoop);
+            document.removeEventListener('keydown', keyboardListener);
+            
+            document.getElementById('final-score-value').innerText = gameState.score;
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        // 重置游戏
         function resetGame() {
+            // 清除所有墨滴
+            gameState.inkDrops.forEach(drop => drop.element.remove());
+            gameState.inkDrops = [];
+            
+            // 重置状态
+            gameState.score = 0;
+            gameState.inkLevel = 0;
+            gameState.currentInkX = 400;
+            gameState.currentInkY = 100;
+            gameState.inkSpeed = 2;
+            
+            updateUI();
+            
+            // 隐藏游戏结束界面
             document.getElementById('game-over').style.display = 'none';
-            const scene = window.gameInstance.scene.getScene('GameScene');
-            if (scene) {
-                scene.resetGame();
-            }
+            
+            // 重新开始
+            startGame();
+        }
+
+        // 暂停
+        function togglePause() {
+            if (!gameState.isPlaying) return;
+            gameState.isPaused = !gameState.isPaused;
         }
     </script>
 </body>
