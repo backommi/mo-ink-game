@@ -1,0 +1,25 @@
+{
+  "name": "mo-ink-game",
+  "version": "1.0.0",
+  "description": "墨染 - 水墨消除游戏",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "game",
+    "phaser",
+    "水墨"
+  ],
+  "author": "代码小龙虾",
+  "license": "MIT",
+  "dependencies": {
+    "phaser": "^3.60.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
