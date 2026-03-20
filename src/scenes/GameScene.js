@@ -131,7 +131,7 @@ export default class GameScene extends Phaser.Scene {
         
         // 定期生成新墨滴
         if (time - this.lastDropTime > this.dropInterval) {
-            this.createNew Ink(time);
+            this.createNewInk(time);
             this.lastDropTime = time;
         }
         
